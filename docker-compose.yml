@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  user-service:
+    build: ./user-service
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    networks:
+      - healprint-network
+
+  chat-service:
+    build: ./chat-service
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+    networks:
+      - healprint-network
+
+  diagnostic-service:
+    build: ./diagnostic-service
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+    networks:
+      - healprint-network
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - USER_SERVICE_URL=http://user-service:8001
+      - CHAT_SERVICE_URL=http://chat-service:8002
+      - DIAGNOSTIC_SERVICE_URL=http://diagnostic-service:8003
+    depends_on:
+      - user-service
+      - chat-service
+      - diagnostic-service
+    networks:
+      - healprint-network
+
+  # Frontend service (optional - for development)
+  frontend:
+    build: ../healprint-client
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8002
+    depends_on:
+      - chat-service
+    networks:
+      - healprint-network
+
+networks:
+  healprint-network:
+    driver: bridge

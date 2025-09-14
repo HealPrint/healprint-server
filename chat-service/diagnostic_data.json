@@ -1,0 +1,339 @@
+{
+  "symptom_categories": {
+    "skin_conditions": {
+      "category": "Skin Conditions",
+      "symptoms": [
+        "acne", "blackheads", "whiteheads", "cysts", "nodules",
+        "dry_skin", "oily_skin", "sensitive_skin", "redness", "inflammation",
+        "rashes", "eczema", "psoriasis", "dermatitis", "rosacea",
+        "hyperpigmentation", "dark_spots", "melasma", "age_spots",
+        "wrinkles", "fine_lines", "sagging", "dull_skin", "uneven_texture",
+        "itchy_skin", "scaly_patches", "bumps", "pustules", "papules"
+      ],
+      "severity_levels": ["mild", "moderate", "severe"],
+      "associated_factors": ["hormonal", "dietary", "stress", "environmental", "genetic", "allergic"]
+    },
+    "hair_conditions": {
+      "category": "Hair Conditions",
+      "symptoms": [
+        "hair_loss", "thinning", "bald_patches", "receding_hairline",
+        "dry_hair", "oily_hair", "brittle_hair", "split_ends",
+        "dandruff", "scalp_irritation", "scalp_psoriasis", "scalp_eczema",
+        "slow_growth", "excessive_shedding", "breakage", "frizz",
+        "scalp_itching", "scalp_flaking", "hair_texture_changes", "scalp_tenderness"
+      ],
+      "severity_levels": ["mild", "moderate", "severe"],
+      "associated_factors": ["nutritional", "hormonal", "stress", "genetic", "environmental", "chemical"]
+    },
+    "internal_health": {
+      "category": "Internal Health Indicators",
+      "symptoms": [
+        "digestive_issues", "bloating", "constipation", "diarrhea", "acid_reflux",
+        "fatigue", "low_energy", "sleep_issues", "insomnia", "poor_sleep_quality",
+        "mood_swings", "anxiety", "depression", "irritability", "brain_fog",
+        "weight_changes", "unexplained_weight_gain", "unexplained_weight_loss",
+        "hormonal_imbalances", "irregular_cycles", "pms_symptoms", "menopause_symptoms",
+        "headaches", "joint_pain", "muscle_aches", "nausea", "dizziness"
+      ],
+      "severity_levels": ["mild", "moderate", "severe"],
+      "associated_factors": ["lifestyle", "dietary", "stress", "genetic", "environmental", "medication"]
+    }
+  },
+  
+  "diagnostic_questions": [
+    {
+      "question_id": "skin_primary_concern",
+      "question": "What is your primary skin concern right now?",
+      "category": "skin_conditions",
+      "response_type": "multiple_choice",
+      "options": ["acne", "dryness", "oily skin", "sensitivity", "aging", "pigmentation", "rashes", "other"],
+      "follow_up_questions": ["skin_severity", "skin_duration", "skin_triggers"]
+    },
+    {
+      "question_id": "hair_primary_concern",
+      "question": "What is your main hair concern?",
+      "category": "hair_conditions",
+      "response_type": "multiple_choice",
+      "options": ["hair loss", "thinning", "dryness", "dandruff", "slow growth", "breakage", "scalp issues", "other"],
+      "follow_up_questions": ["hair_severity", "hair_duration", "hair_care_routine"]
+    },
+    {
+      "question_id": "stress_level",
+      "question": "How would you rate your current stress level on a scale of 1-10?",
+      "category": "internal_health",
+      "response_type": "scale",
+      "options": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "follow_up_questions": ["stress_sources", "stress_management", "stress_duration"]
+    },
+    {
+      "question_id": "sleep_quality",
+      "question": "How would you describe your sleep quality?",
+      "category": "internal_health",
+      "response_type": "multiple_choice",
+      "options": ["excellent", "good", "fair", "poor", "very poor"],
+      "follow_up_questions": ["sleep_duration", "sleep_issues", "sleep_routine"]
+    },
+    {
+      "question_id": "diet_quality",
+      "question": "How would you rate your current diet?",
+      "category": "internal_health",
+      "response_type": "multiple_choice",
+      "options": ["excellent", "good", "fair", "poor", "very poor"],
+      "follow_up_questions": ["diet_details", "supplements", "food_sensitivities"]
+    },
+    {
+      "question_id": "digestive_health",
+      "question": "Do you experience any digestive issues?",
+      "category": "internal_health",
+      "response_type": "yes_no",
+      "follow_up_questions": ["digestive_symptoms", "digestive_frequency", "digestive_triggers"]
+    },
+    {
+      "question_id": "hormonal_changes",
+      "question": "Have you noticed any hormonal changes recently?",
+      "category": "internal_health",
+      "response_type": "yes_no",
+      "follow_up_questions": ["hormonal_symptoms", "cycle_changes", "hormonal_timing"]
+    },
+    {
+      "question_id": "energy_levels",
+      "question": "How would you describe your energy levels?",
+      "category": "internal_health",
+      "response_type": "multiple_choice",
+      "options": ["high", "good", "moderate", "low", "very low"],
+      "follow_up_questions": ["energy_patterns", "energy_triggers", "energy_management"]
+    }
+  ],
+  
+  "health_factors": {
+    "nutritional_deficiencies": {
+      "factor": "Nutritional Deficiencies",
+      "impact_level": "high",
+      "related_symptoms": ["hair_loss", "dry_skin", "fatigue", "brittle_hair", "slow_healing", "weakness"],
+      "recommendations": [
+        "Get comprehensive blood work (iron, B12, vitamin D, zinc, magnesium)",
+        "Increase protein intake (1g per kg body weight)",
+        "Add omega-3 fatty acids (fish oil, flax seeds)",
+        "Consider multivitamin supplement",
+        "Eat more leafy greens and colorful vegetables",
+        "Include healthy fats (avocado, nuts, olive oil)"
+      ],
+      "tests_suggested": ["Complete Blood Count", "Iron studies", "Vitamin D", "B12", "Zinc", "Magnesium"]
+    },
+    "hormonal_imbalances": {
+      "factor": "Hormonal Imbalances",
+      "impact_level": "high",
+      "related_symptoms": ["acne", "hair_loss", "mood_swings", "weight_changes", "irregular_cycles", "fatigue"],
+      "recommendations": [
+        "Get comprehensive hormone panel testing",
+        "Track menstrual cycles and symptoms",
+        "Manage stress levels effectively",
+        "Consider adaptogenic herbs (ashwagandha, rhodiola)",
+        "Consult endocrinologist if severe",
+        "Maintain consistent sleep schedule"
+      ],
+      "tests_suggested": ["Thyroid function (TSH, T3, T4)", "Sex hormones (estradiol, progesterone, testosterone)", "Cortisol levels", "Insulin and glucose"]
+    },
+    "chronic_stress": {
+      "factor": "Chronic Stress",
+      "impact_level": "high",
+      "related_symptoms": ["acne", "hair_loss", "fatigue", "sleep_issues", "inflammation", "mood_issues"],
+      "recommendations": [
+        "Implement daily stress management techniques",
+        "Practice meditation or mindfulness",
+        "Get adequate sleep (7-9 hours)",
+        "Consider therapy or counseling",
+        "Engage in regular physical activity",
+        "Limit caffeine and alcohol intake"
+      ],
+      "tests_suggested": ["Cortisol levels", "Inflammatory markers (CRP)", "Stress hormone panel"]
+    },
+    "gut_health_issues": {
+      "factor": "Gut Health Issues",
+      "impact_level": "medium",
+      "related_symptoms": ["acne", "skin_inflammation", "bloating", "fatigue", "mood_issues", "digestive_problems"],
+      "recommendations": [
+        "Get comprehensive gut health testing",
+        "Eliminate inflammatory foods (gluten, dairy, sugar)",
+        "Add probiotics and prebiotics to diet",
+        "Manage stress levels",
+        "Consider elimination diet",
+        "Increase fiber intake gradually"
+      ],
+      "tests_suggested": ["Comprehensive stool analysis", "Food sensitivity testing", "Gut microbiome analysis", "Inflammatory markers"]
+    },
+    "environmental_factors": {
+      "factor": "Environmental Factors",
+      "impact_level": "medium",
+      "related_symptoms": ["dry_skin", "sensitivity", "premature_aging", "inflammation", "allergic_reactions"],
+      "recommendations": [
+        "Use gentle, fragrance-free skincare products",
+        "Protect skin from UV damage (SPF 30+)",
+        "Improve indoor air quality (air purifier, plants)",
+        "Use humidifier in dry environments",
+        "Avoid harsh chemicals and fragrances",
+        "Wear protective clothing when needed"
+      ],
+      "tests_suggested": ["Allergy testing", "Environmental toxin testing", "Skin patch testing"]
+    },
+    "sleep_disorders": {
+      "factor": "Sleep Disorders",
+      "impact_level": "high",
+      "related_symptoms": ["fatigue", "mood_issues", "poor_concentration", "weight_gain", "inflammation"],
+      "recommendations": [
+        "Establish consistent sleep schedule",
+        "Create optimal sleep environment",
+        "Limit screen time before bed",
+        "Avoid caffeine after 2 PM",
+        "Consider sleep study if severe",
+        "Practice relaxation techniques"
+      ],
+      "tests_suggested": ["Sleep study", "Melatonin levels", "Cortisol rhythm", "Thyroid function"]
+    }
+  },
+  
+  "diagnostic_patterns": {
+    "acne_patterns": {
+      "hormonal_acne": {
+        "symptoms": ["acne_along_jawline", "cystic_acne", "irregular_cycles", "mood_swings", "weight_gain"],
+        "likely_causes": ["PCOS", "thyroid_issues", "insulin_resistance", "estrogen_dominance"],
+        "confidence_threshold": 0.8,
+        "recommendations": ["Hormone testing", "Blood sugar management", "Anti-inflammatory diet", "Stress management"]
+      },
+      "stress_acne": {
+        "symptoms": ["acne_during_stress", "inflammation", "poor_sleep", "anxiety", "tension"],
+        "likely_causes": ["cortisol_imbalance", "inflammation", "poor_immune_function", "digestive_issues"],
+        "confidence_threshold": 0.7,
+        "recommendations": ["Stress management", "Sleep optimization", "Anti-inflammatory diet", "Mindfulness practices"]
+      },
+      "dietary_acne": {
+        "symptoms": ["acne_after_meals", "digestive_issues", "bloating", "inflammation", "food_cravings"],
+        "likely_causes": ["food_sensitivities", "gut_dysbiosis", "inflammation", "blood_sugar_imbalances"],
+        "confidence_threshold": 0.6,
+        "recommendations": ["Elimination diet", "Gut health testing", "Anti-inflammatory foods", "Probiotics"]
+      }
+    },
+    "hair_loss_patterns": {
+      "nutritional_hair_loss": {
+        "symptoms": ["overall_thinning", "brittle_hair", "fatigue", "pale_skin", "weakness", "cold_hands_feet"],
+        "likely_causes": ["iron_deficiency", "B12_deficiency", "protein_deficiency", "zinc_deficiency"],
+        "confidence_threshold": 0.8,
+        "recommendations": ["Iron studies", "B12 testing", "Protein increase", "Multivitamin", "Dietary improvements"]
+      },
+      "hormonal_hair_loss": {
+        "symptoms": ["thinning_at_crown", "irregular_cycles", "weight_changes", "mood_swings", "acne"],
+        "likely_causes": ["thyroid_issues", "PCOS", "menopause", "hormonal_imbalance", "insulin_resistance"],
+        "confidence_threshold": 0.8,
+        "recommendations": ["Hormone panel", "Thyroid function", "Blood sugar testing", "Hormone optimization"]
+      },
+      "stress_hair_loss": {
+        "symptoms": ["sudden_shedding", "stress_events", "poor_sleep", "anxiety", "tension_headaches"],
+        "likely_causes": ["telogen_effluvium", "cortisol_imbalance", "inflammation", "immune_suppression"],
+        "confidence_threshold": 0.7,
+        "recommendations": ["Stress management", "Sleep optimization", "Anti-inflammatory diet", "Hair growth support"]
+      }
+    },
+    "skin_aging_patterns": {
+      "premature_aging": {
+        "symptoms": ["fine_lines", "dull_skin", "uneven_texture", "age_spots", "loss_of_firmness"],
+        "likely_causes": ["sun_damage", "oxidative_stress", "poor_nutrition", "chronic_inflammation", "hormonal_decline"],
+        "confidence_threshold": 0.7,
+        "recommendations": ["Antioxidant supplements", "Sun protection", "Anti-inflammatory diet", "Hormone optimization"]
+      }
+    }
+  },
+  
+  "recommended_tests": {
+    "basic_health_panel": [
+      "Complete Blood Count (CBC)",
+      "Comprehensive Metabolic Panel (CMP)",
+      "Iron studies (ferritin, TIBC, iron saturation)",
+      "Vitamin D (25-hydroxyvitamin D)",
+      "B12 and folate levels",
+      "Thyroid function (TSH, T3, T4)"
+    ],
+    "hormonal_panel": [
+      "Sex hormones (estradiol, progesterone, testosterone)",
+      "Cortisol (AM and PM levels)",
+      "Insulin and glucose levels",
+      "DHEA-S levels",
+      "Prolactin levels"
+    ],
+    "advanced_panel": [
+      "Food sensitivity testing (IgG)",
+      "Gut microbiome analysis",
+      "Inflammatory markers (CRP, ESR, IL-6)",
+      "Heavy metal testing",
+      "Nutrient absorption testing",
+      "Omega-3 index"
+    ],
+    "specialized_tests": [
+      "Hair mineral analysis",
+      "Organic acids test",
+      "Methylation panel",
+      "Allergy testing (IgE)",
+      "Environmental toxin testing"
+    ]
+  },
+  
+  "urgency_levels": {
+    "urgent": {
+      "criteria": ["severe_pain", "rapid_weight_loss", "severe_depression", "suicidal_thoughts", "severe_allergic_reaction"],
+      "action": "Seek immediate medical attention",
+      "timeframe": "Within 24 hours"
+    },
+    "high": {
+      "criteria": ["moderate_to_severe_symptoms", "symptoms_worsening", "quality_of_life_impact", "multiple_symptoms"],
+      "action": "Schedule medical consultation within 1 week",
+      "timeframe": "Within 1 week"
+    },
+    "medium": {
+      "criteria": ["mild_to_moderate_symptoms", "symptoms_persistent", "lifestyle_impact"],
+      "action": "Schedule medical consultation within 2-4 weeks",
+      "timeframe": "Within 2-4 weeks"
+    },
+    "low": {
+      "criteria": ["mild_symptoms", "symptoms_occasional", "minimal_impact"],
+      "action": "Monitor symptoms and consider lifestyle changes",
+      "timeframe": "Monitor for 4-6 weeks"
+    }
+  },
+  
+  "sample_diagnostic_flow": {
+    "initial_assessment": {
+      "questions": [
+        "What is your primary concern today?",
+        "How long have you been experiencing this?",
+        "Have you noticed any changes in your energy levels?",
+        "How would you rate your stress level?",
+        "Are you experiencing any digestive issues?"
+      ]
+    },
+    "symptom_exploration": {
+      "skin_questions": [
+        "Where exactly are you experiencing skin issues?",
+        "What triggers or worsens your skin problems?",
+        "Have you tried any treatments before?",
+        "Do you notice any patterns with your menstrual cycle?"
+      ],
+      "hair_questions": [
+        "How much hair are you losing daily?",
+        "Is the hair loss gradual or sudden?",
+        "Have you noticed changes in hair texture?",
+        "Are you experiencing any scalp issues?"
+      ],
+      "lifestyle_questions": [
+        "What does your typical day look like?",
+        "How many hours of sleep do you get?",
+        "What does your diet consist of?",
+        "Do you exercise regularly?"
+      ]
+    },
+    "analysis_stage": {
+      "pattern_recognition": "Identify connections between symptoms",
+      "root_cause_analysis": "Determine likely underlying causes",
+      "confidence_scoring": "Assess confidence in analysis",
+      "recommendation_generation": "Create personalized action plan"
+    }
+  }
+}
