@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
 import json
-from ai_agent import HealPrintAIAgent
+from healAgent import HealPrintAIAgent
 
 app = FastAPI(title="HealPrint Chat Service", version="1.0.0")
 
@@ -18,7 +18,11 @@ app.add_middleware(
 )
 
 # Initialize AI Agent
-ai_agent = HealPrintAIAgent()
+try:
+    ai_agent = HealPrintAIAgent()
+except Exception as e:
+    print(f"Warning: AI Agent initialization failed: {e}")
+    ai_agent = None
 
 # Simple in-memory storage for MVP
 conversations_db = {}
@@ -47,6 +51,10 @@ async def root():
 async def chat_with_ai(chat_message: ChatMessage):
     """Process chat message and return AI response"""
     
+    # Check if AI agent is available
+    if ai_agent is None:
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+    
     # Find existing conversation for this user or create new one
     conversation_id = None
     for conv_id, conv_data in conversations_db.items():
@@ -59,11 +67,14 @@ async def chat_with_ai(chat_message: ChatMessage):
         conversation_id = f"conv_{chat_message.user_id}_{len(conversations_db)}"
     
     # Use AI Agent for professional health conversation
-    ai_response = ai_agent.chat_with_user(
-        user_message=chat_message.message,
-        user_id=chat_message.user_id,
-        conversation_id=conversation_id
-    )
+    try:
+        ai_response = ai_agent.chat_with_user(
+            user_message=chat_message.message,
+            user_id=chat_message.user_id,
+            conversation_id=conversation_id
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
     
     # Store conversation in our database
     message_id = f"msg_{len(conversations_db) + 1}"
@@ -117,6 +128,9 @@ async def get_user_conversations(user_id: str):
 @app.post("/analyze/{conversation_id}")
 async def analyze_conversation(conversation_id: str):
     """Generate comprehensive diagnostic analysis for a conversation"""
+    if ai_agent is None:
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+    
     try:
         analysis = ai_agent.generate_diagnostic_analysis(conversation_id)
         return analysis
@@ -126,6 +140,9 @@ async def analyze_conversation(conversation_id: str):
 @app.get("/conversation/{conversation_id}/summary")
 async def get_conversation_summary(conversation_id: str):
     """Get summary of a conversation"""
+    if ai_agent is None:
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+    
     try:
         summary = ai_agent.get_conversation_summary(conversation_id)
         return summary
