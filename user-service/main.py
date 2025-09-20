@@ -26,48 +26,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
-# Allow all origins for development - restrict in production
-allowed_origins = [
-    "http://localhost:3000",
-    "http://localhost:5173", 
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "https://healprint-client.vercel.app",
-    "https://healprint.vercel.app",
-]
-
+# Add CORS middleware - simplified approach
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for now
+    allow_credentials=False,  # Set to False when using *
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
-
-# Additional CORS handling for preflight requests
-@app.middleware("http")
-async def add_cors_headers(request, call_next):
-    # Handle preflight OPTIONS requests
-    if request.method == "OPTIONS":
-        response = Response()
-        response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
-    
-    response = await call_next(request)
-    
-    # Add CORS headers to all responses
-    origin = request.headers.get("origin")
-    if origin in allowed_origins or origin is None:
-        response.headers["Access-Control-Allow-Origin"] = origin or "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-    
-    return response
 
 security = HTTPBearer()
 
@@ -85,67 +51,68 @@ def verify_password(password: str, hashed_password: str) -> bool:
 async def root():
     return {"service": "HealPrint User Service", "status": "running"}
 
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    """Handle preflight OPTIONS requests for CORS"""
-    return {"message": "OK"}
-
 @app.get("/cors-test")
 async def cors_test():
     """Test endpoint to verify CORS is working"""
     return {"message": "CORS is working!", "timestamp": datetime.utcnow().isoformat()}
 
-@app.get("/debug")
-async def debug_info(request):
-    """Debug endpoint to check request headers and CORS info"""
-    return {
-        "origin": request.headers.get("origin"),
-        "user_agent": request.headers.get("user-agent"),
-        "allowed_origins": allowed_origins,
-        "method": request.method,
-        "url": str(request.url)
-    }
-
 @app.post("/register", response_model=UserResponse)
 async def register_user(user: UserCreate):
     """Register a new user"""
-    db = get_database()
-    if not db:
-        raise HTTPException(status_code=500, detail="Database connection not available")
-    
-    # Check if user already exists
-    existing_user = await db.users.find_one({"email": user.email})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create new user document
-    user_doc = {
-        "email": user.email,
-        "password": hash_password(user.password),
-        "name": user.name,
-        "age": user.age,
-        "country": user.country,
-        "created_at": datetime.utcnow()
-    }
-    
-    # Insert user into MongoDB
-    result = await db.users.insert_one(user_doc)
-    
-    # Return user response
-    return UserResponse(
-        id=str(result.inserted_id),
-        email=user.email,
-        name=user.name,
-        age=user.age,
-        country=user.country,
-        created_at=user_doc["created_at"]
-    )
+    try:
+        print(f"🔧 Register request received for email: {user.email}")
+        
+        db = get_database()
+        if db is None:
+            print("❌ Database connection not available")
+            raise HTTPException(status_code=500, detail="Database connection not available")
+        
+        print("✅ Database connection available")
+        
+        # Check if user already exists
+        existing_user = await db.users.find_one({"email": user.email})
+        if existing_user:
+            print(f"❌ User already exists: {user.email}")
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        print("✅ User email is available")
+        
+        # Create new user document
+        user_doc = {
+            "email": user.email,
+            "password": hash_password(user.password),
+            "name": user.name,
+            "age": user.age,
+            "country": user.country,
+            "created_at": datetime.utcnow()
+        }
+        
+        print("✅ User document created")
+        
+        # Insert user into MongoDB
+        result = await db.users.insert_one(user_doc)
+        print(f"✅ User inserted with ID: {result.inserted_id}")
+        
+        # Return user response
+        return UserResponse(
+            id=str(result.inserted_id),
+            email=user.email,
+            name=user.name,
+            age=user.age,
+            country=user.country,
+            created_at=user_doc["created_at"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error in register: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/login")
 async def login_user(credentials: UserLogin):
     """Login user and return token"""
     db = get_database()
-    if not db:
+    if db is None:
         raise HTTPException(status_code=500, detail="Database connection not available")
     
     # Find user by email
@@ -165,7 +132,7 @@ async def login_user(credentials: UserLogin):
 async def get_user_profile(user_id: str):
     """Get user profile by ID"""
     db = get_database()
-    if not db:
+    if db is None:
         raise HTTPException(status_code=500, detail="Database connection not available")
     
     # Validate ObjectId format
