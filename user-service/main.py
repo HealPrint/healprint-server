@@ -6,6 +6,7 @@ from bson import ObjectId
 import bcrypt
 import uvicorn
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from database import connect_to_mongo, close_mongo_connection, get_database
 from models import UserCreate, UserResponse, UserLogin, UserInDB
@@ -72,16 +73,17 @@ async def register_user(user: UserCreate):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Create new user document
-    user_doc = UserInDB(
-        email=user.email,
-        password=hash_password(user.password),
-        name=user.name,
-        age=user.age,
-        country=user.country
-    )
+    user_doc = {
+        "email": user.email,
+        "password": hash_password(user.password),
+        "name": user.name,
+        "age": user.age,
+        "country": user.country,
+        "created_at": datetime.utcnow()
+    }
     
     # Insert user into MongoDB
-    result = await db.users.insert_one(user_doc.model_dump())
+    result = await db.users.insert_one(user_doc)
     
     # Return user response
     return UserResponse(
@@ -90,7 +92,7 @@ async def register_user(user: UserCreate):
         name=user.name,
         age=user.age,
         country=user.country,
-        created_at=user_doc.created_at
+        created_at=user_doc["created_at"]
     )
 
 @app.post("/login")
