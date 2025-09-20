@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Response
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -27,13 +27,16 @@ app = FastAPI(
 )
 
 # Add CORS middleware
-# In production, replace "*" with your actual frontend domain
+# Allow all origins for development - restrict in production
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:5173", 
     "http://localhost:8080",
-    "https://healprint-client.vercel.app",  # Add your production frontend URL
-    "https://healprint.vercel.app",        # Add your production frontend URL
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "https://healprint-client.vercel.app",
+    "https://healprint.vercel.app",
 ]
 
 app.add_middleware(
@@ -43,6 +46,28 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Additional CORS handling for preflight requests
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    # Handle preflight OPTIONS requests
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+    
+    response = await call_next(request)
+    
+    # Add CORS headers to all responses
+    origin = request.headers.get("origin")
+    if origin in allowed_origins or origin is None:
+        response.headers["Access-Control-Allow-Origin"] = origin or "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return response
 
 security = HTTPBearer()
 
@@ -59,6 +84,27 @@ def verify_password(password: str, hashed_password: str) -> bool:
 @app.get("/")
 async def root():
     return {"service": "HealPrint User Service", "status": "running"}
+
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle preflight OPTIONS requests for CORS"""
+    return {"message": "OK"}
+
+@app.get("/cors-test")
+async def cors_test():
+    """Test endpoint to verify CORS is working"""
+    return {"message": "CORS is working!", "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/debug")
+async def debug_info(request):
+    """Debug endpoint to check request headers and CORS info"""
+    return {
+        "origin": request.headers.get("origin"),
+        "user_agent": request.headers.get("user-agent"),
+        "allowed_origins": allowed_origins,
+        "method": request.method,
+        "url": str(request.url)
+    }
 
 @app.post("/register", response_model=UserResponse)
 async def register_user(user: UserCreate):

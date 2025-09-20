@@ -18,6 +18,9 @@ async def connect_to_mongo():
     global client, database
     try:
         if not MONGODB_URL:
+            print("❌ MONGODB_URL environment variable is not set")
+            print("💡 Please set the MONGODB_URL environment variable in your deployment platform")
+            print("💡 Example: MONGODB_URL=mongodb+srv://username:password@cluster.mongodb.net/database")
             raise ValueError("MONGODB_URL environment variable is not set")
             
         # Configure connection with production settings
@@ -34,12 +37,12 @@ async def connect_to_mongo():
         # Test the connection
         await client.admin.command('ping')
         print(f"✅ Connected to MongoDB successfully")
-        print(f"🔗 Connection URL: {MONGODB_URL}")
+        print(f"🔗 Connection URL: {MONGODB_URL[:50]}...")  # Truncate URL for security
         print(f"📊 Database: {DATABASE_NAME}")
         return database
     except Exception as e:
         print(f"❌ Error connecting to MongoDB: {e}")
-        print(f"🔗 Connection URL: {MONGODB_URL}")
+        print(f"🔗 Connection URL: {MONGODB_URL[:50] if MONGODB_URL else 'Not set'}...")
         print(f"💡 Make sure MongoDB is running and accessible")
         raise e
 
