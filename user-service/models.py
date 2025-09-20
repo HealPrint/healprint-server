@@ -21,10 +21,15 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class GoogleAuthRequest(BaseModel):
+    token: str
+
 class UserInDB(BaseModel):
     email: EmailStr
-    password: str
+    password: Optional[str] = None  # Optional for Google users
     name: str
     age: Optional[int] = None
     country: Optional[str] = None
     created_at: datetime = datetime.utcnow()
+    google_id: Optional[str] = None
+    auth_provider: str = "email"  # "email" or "google"

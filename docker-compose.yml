@@ -9,6 +9,8 @@ services:
       - PORT=8001
       - MONGODB_URL=${MONGODB_URL}
       - DATABASE_NAME=${DATABASE_NAME:-healprint}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     networks:
       - healprint-network
 

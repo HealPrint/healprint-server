@@ -8,3 +8,5 @@ pymongo
 python-dotenv
 email-validator
 bcrypt
+python-jose[cryptography]
+requests

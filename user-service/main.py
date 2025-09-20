@@ -6,10 +6,13 @@ from bson import ObjectId
 import bcrypt
 import uvicorn
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
+import requests
+import os
+from jose import JWTError, jwt
 
 from database import connect_to_mongo, close_mongo_connection, get_database
-from models import UserCreate, UserResponse, UserLogin, UserInDB
+from models import UserCreate, UserResponse, UserLogin, UserInDB, GoogleAuthRequest
 
 # Lifespan context manager for database connection
 @asynccontextmanager
@@ -37,6 +40,49 @@ app.add_middleware(
 
 security = HTTPBearer()
 
+# JWT Configuration
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    """Create JWT access token"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def verify_google_token(token: str):
+    """Verify Google ID token and return user info"""
+    try:
+        # Verify the token with Google
+        response = requests.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+        response.raise_for_status()
+        
+        user_info = response.json()
+        
+        # Verify the audience matches our client ID
+        if user_info.get("aud") != GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=400, detail="Invalid token audience")
+        
+        return {
+            "google_id": user_info.get("sub"),
+            "email": user_info.get("email"),
+            "name": user_info.get("name"),
+            "picture": user_info.get("picture")
+        }
+    except requests.RequestException:
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Token verification failed: {str(e)}")
+
 def hash_password(password: str) -> str:
     """Hash password using bcrypt for production security"""
     salt = bcrypt.gensalt()
@@ -55,6 +101,75 @@ async def root():
 async def cors_test():
     """Test endpoint to verify CORS is working"""
     return {"message": "CORS is working!", "timestamp": datetime.utcnow().isoformat()}
+
+@app.post("/auth/google", response_model=UserResponse)
+async def google_auth(google_auth: GoogleAuthRequest):
+    """Authenticate user with Google OAuth"""
+    try:
+        print(f"🔧 Google auth request received")
+        
+        # Verify Google token
+        google_user = await verify_google_token(google_auth.token)
+        print(f"✅ Google token verified for: {google_user['email']}")
+        
+        db = get_database()
+        if db is None:
+            print("❌ Database connection not available")
+            raise HTTPException(status_code=500, detail="Database connection not available")
+        
+        # Check if user exists by Google ID or email
+        existing_user = await db.users.find_one({
+            "$or": [
+                {"google_id": google_user["google_id"]},
+                {"email": google_user["email"]}
+            ]
+        })
+        
+        if existing_user:
+            # Update existing user with Google ID if not already set
+            if not existing_user.get("google_id"):
+                await db.users.update_one(
+                    {"_id": existing_user["_id"]},
+                    {"$set": {"google_id": google_user["google_id"], "auth_provider": "google"}}
+                )
+            print(f"✅ Existing user found: {existing_user['email']}")
+        else:
+            # Create new user
+            user_doc = {
+                "email": google_user["email"],
+                "name": google_user["name"],
+                "google_id": google_user["google_id"],
+                "auth_provider": "google",
+                "created_at": datetime.utcnow()
+            }
+            
+            result = await db.users.insert_one(user_doc)
+            existing_user = await db.users.find_one({"_id": result.inserted_id})
+            print(f"✅ New Google user created: {google_user['email']}")
+        
+        # Create JWT token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": str(existing_user["_id"])}, 
+            expires_delta=access_token_expires
+        )
+        
+        return {
+            "id": str(existing_user["_id"]),
+            "email": existing_user["email"],
+            "name": existing_user["name"],
+            "age": existing_user.get("age"),
+            "country": existing_user.get("country"),
+            "created_at": existing_user.get("created_at"),
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error in Google auth: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/register", response_model=UserResponse)
 async def register_user(user: UserCreate):
