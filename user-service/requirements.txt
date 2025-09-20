@@ -2,3 +2,8 @@ fastapi
 uvicorn
 pydantic
 python-multipart
+motor
+pymongo
+python-dotenv
+email-validator
+bcrypt

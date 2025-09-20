@@ -7,6 +7,8 @@ services:
       - "8001:8001"
     environment:
       - PORT=8001
+      - MONGODB_URL=${MONGODB_URL}
+      - DATABASE_NAME=${DATABASE_NAME:-healprint}
     networks:
       - healprint-network
 
@@ -55,6 +57,7 @@ services:
       - chat-service
     networks:
       - healprint-network
+
 
 networks:
   healprint-network:

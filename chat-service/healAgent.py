@@ -12,10 +12,19 @@ from diagnostic_tools import DIAGNOSTIC_DATA, get_health_factors_by_symptoms
 
 class HealPrintAIAgent:
     def __init__(self):
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
-        )
+        self.client = None
+        if OPENROUTER_API_KEY and OPENROUTER_API_KEY != "your_openrouter_api_key_here":
+            try:
+                self.client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=OPENROUTER_API_KEY,
+                )
+            except Exception as e:
+                print(f"Warning: Failed to initialize OpenAI client: {e}")
+                self.client = None
+        else:
+            print("Warning: No valid OpenRouter API key provided")
+        
         self.conversation_history = {}
         
     def get_system_prompt(self) -> str:
@@ -127,16 +136,20 @@ Use this information to guide your questions and provide comprehensive health in
         )
         
         try:
+            # Check if client is available
+            if self.client is None:
+                return self._get_fallback_response(conversation_id, conversation)
+            
             # Call OpenAI API
             completion = self.client.chat.completions.create(
                 extra_headers={
                     "HTTP-Referer": SITE_URL,
                     "X-Title": SITE_NAME,
                 },
-                model="openai/gpt-4o",
+                model="openai/gpt-4o-mini",  # Using cheaper model
                 messages=formatted_messages,
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=500  # Reduced to save credits
             )
             
             ai_response = completion.choices[0].message.content
@@ -165,14 +178,67 @@ Use this information to guide your questions and provide comprehensive health in
             }
             
         except Exception as e:
-            return {
-                "response": f"I apologize, I'm experiencing technical difficulties. Please try again. Error: {str(e)}",
-                "conversation_id": conversation_id,
-                "assessment_stage": conversation["assessment_stage"],
-                "symptoms_collected": conversation["symptoms_collected"],
-                "needs_diagnosis": False,
-                "error": str(e)
-            }
+            error_msg = str(e)
+            
+            # Handle specific API credit errors
+            if "402" in error_msg or "credits" in error_msg.lower():
+                return {
+                    "response": "I'm currently unable to process your request due to API credit limitations. Please contact support or try again later. For immediate assistance, please reach out to our support team at support@healprint.xyz.",
+                    "conversation_id": conversation_id,
+                    "assessment_stage": conversation["assessment_stage"],
+                    "symptoms_collected": conversation["symptoms_collected"],
+                    "needs_diagnosis": False,
+                    "error": "API credits exhausted"
+                }
+            elif "401" in error_msg or "unauthorized" in error_msg.lower():
+                return {
+                    "response": "I'm currently unable to process your request due to API authentication issues. Please contact support at support@healprint.xyz.",
+                    "conversation_id": conversation_id,
+                    "assessment_stage": conversation["assessment_stage"],
+                    "symptoms_collected": conversation["symptoms_collected"],
+                    "needs_diagnosis": False,
+                    "error": "API authentication failed"
+                }
+            else:
+                return {
+                    "response": f"I apologize, I'm experiencing technical difficulties. Please try again later or contact support at support@healprint.xyz. Error: {error_msg}",
+                    "conversation_id": conversation_id,
+                    "assessment_stage": conversation["assessment_stage"],
+                    "symptoms_collected": conversation["symptoms_collected"],
+                    "needs_diagnosis": False,
+                    "error": f"API error: {error_msg}"
+                }
+    
+    def _get_fallback_response(self, conversation_id: str, conversation: Dict[str, Any]) -> Dict[str, Any]:
+        """Provide fallback response when API is not available"""
+        user_message = conversation["messages"][-1]["content"].lower()
+        
+        # Simple keyword-based responses
+        if any(word in user_message for word in ["hello", "hi", "hey", "start"]):
+            response = "Hello! I'm HealPrint AI, your health and wellness assistant. I'm currently experiencing some technical difficulties with my AI processing, but I'm here to help guide you through your health journey. Please describe any skin, hair, or health concerns you'd like to discuss."
+        elif any(word in user_message for word in ["skin", "acne", "rash", "dry", "oily"]):
+            response = "I understand you're concerned about skin issues. While I'm experiencing technical difficulties with my AI analysis, I can still provide general guidance. Common skin concerns often relate to diet, stress, hormones, or skincare routines. Would you like to share more details about your specific skin concerns?"
+        elif any(word in user_message for word in ["hair", "hair loss", "thinning", "dry hair"]):
+            response = "Hair health is often connected to internal factors like nutrition, stress, and hormonal balance. While I'm having technical difficulties with my AI processing, I can still offer general advice. What specific hair concerns are you experiencing?"
+        elif any(word in user_message for word in ["help", "support", "contact"]):
+            response = "I'm here to help! While I'm experiencing some technical difficulties with my AI processing, our support team is available to assist you. You can reach us at support@healprint.xyz or try again later when the service is fully restored."
+        else:
+            response = "Thank you for your message. I'm currently experiencing some technical difficulties with my AI processing capabilities, but I'm still here to help guide you through your health journey. Please feel free to describe any health concerns you have, and I'll do my best to provide helpful guidance."
+        
+        # Add response to conversation
+        conversation["messages"].append({
+            "role": "assistant",
+            "content": response
+        })
+        
+        return {
+            "response": response,
+            "conversation_id": conversation_id,
+            "assessment_stage": conversation["assessment_stage"],
+            "symptoms_collected": conversation["symptoms_collected"],
+            "needs_diagnosis": False,
+            "fallback_mode": True
+        }
     
     def _analyze_conversation_stage(self, conversation: Dict[str, Any]) -> str:
         """Analyze conversation to determine assessment stage"""
