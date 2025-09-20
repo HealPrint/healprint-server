@@ -81,7 +81,7 @@ async def register_user(user: UserCreate):
     )
     
     # Insert user into MongoDB
-    result = await db.users.insert_one(user_doc.dict())
+    result = await db.users.insert_one(user_doc.model_dump())
     
     # Return user response
     return UserResponse(
