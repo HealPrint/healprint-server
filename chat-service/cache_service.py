@@ -24,6 +24,10 @@ class ConversationCache:
     async def connect(self):
         """Initialize Redis connection"""
         try:
+            if not self.redis_url:
+                logger.info("REDIS_URL not set - cache disabled")
+                self.redis_client = None
+                return
             self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
             await self.redis_client.ping()
             logger.info("Redis connection established successfully")
