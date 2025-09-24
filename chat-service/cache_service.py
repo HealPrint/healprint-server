@@ -9,13 +9,14 @@ from typing import Optional, Dict, List, Any
 import redis.asyncio as redis
 from datetime import datetime, timedelta
 import logging
+from config import REDIS_URL
 
 logger = logging.getLogger(__name__)
 
 class ConversationCache:
     """Professional conversation caching service using Redis"""
     
-    def __init__(self, redis_url: str = "redis://localhost:6379"):
+    def __init__(self, redis_url: str = REDIS_URL):
         self.redis_url = redis_url
         self.redis_client: Optional[redis.Redis] = None
         self.cache_ttl = 3600 * 24  # 24 hours TTL

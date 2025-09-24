@@ -18,4 +18,7 @@ SITE_NAME = os.getenv("SITE_NAME", "HealPrint AI")
 MAX_CONVERSATION_LENGTH = int(os.getenv("MAX_CONVERSATION_LENGTH", "50"))
 DIAGNOSTIC_THRESHOLD = float(os.getenv("DIAGNOSTIC_THRESHOLD", "0.7"))
 
+# Redis Configuration
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
 
