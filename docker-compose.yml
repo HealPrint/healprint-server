@@ -11,6 +11,7 @@ services:
       - DATABASE_NAME=${DATABASE_NAME:-healprint}
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     networks:
       - healprint-network
 

@@ -13,12 +13,7 @@ bs4
 urllib3
 requests-html
 pydantic-settings
-python-multipart
-httpx
-requests
-beautifulsoup4
-lxml
-bs4
-urllib3
-requests-html
-pydantic-settings
+motor
+pymongo
+redis
+aioredis

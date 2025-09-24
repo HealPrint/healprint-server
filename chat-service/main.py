@@ -1,12 +1,28 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
 import json
-from healAgent import HealPrintAIAgent
+from datetime import datetime
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="HealPrint Chat Service", version="1.0.0")
+from healAgent import HealPrintAIAgent
+from database import connect_to_mongo, close_mongo_connection, get_database, lifespan
+from models import (
+    ChatMessage, ChatResponse, Conversation, Message, 
+    ConversationHistory, ConversationSummary
+)
+from conversation_service import ConversationService
+from cache_service import conversation_cache
+
+app = FastAPI(
+    title="HealPrint Chat Service", 
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -24,31 +40,19 @@ except Exception as e:
     print(f"Warning: AI Agent initialization failed: {e}")
     ai_agent = None
 
-# Simple in-memory storage for MVP
-conversations_db = {}
-
-class ChatMessage(BaseModel):
-    message: str
-    user_id: str
-
-class ChatResponse(BaseModel):
-    response: str
-    conversation_id: str
-    message_id: str
-    assessment_stage: str
-    symptoms_collected: Dict[str, Any]
-    needs_diagnosis: bool
-
-class ConversationHistory(BaseModel):
-    conversation_id: str
-    messages: List[dict]
+# Database dependency
+async def get_db() -> AsyncIOMotorDatabase:
+    db = get_database()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection not available")
+    return db
 
 @app.get("/")
 async def root():
     return {"service": "HealPrint Chat Service", "status": "running"}
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat_with_ai(chat_message: ChatMessage):
+async def chat_with_ai(chat_message: ChatMessage, db: AsyncIOMotorDatabase = Depends(get_db)):
     """Process chat message and return AI response"""
     
     # Check if AI agent is available
@@ -56,15 +60,22 @@ async def chat_with_ai(chat_message: ChatMessage):
         raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
     
     # Find existing conversation for this user or create new one
-    conversation_id = None
-    for conv_id, conv_data in conversations_db.items():
-        if conv_data["user_id"] == chat_message.user_id:
-            conversation_id = conv_id
-            break
+    existing_conversation = await db.conversations.find_one({
+        "user_id": chat_message.user_id,
+        "assessment_stage": {"$ne": "completed"}
+    })
     
-    # If no existing conversation, create a new one
-    if conversation_id is None:
-        conversation_id = f"conv_{chat_message.user_id}_{len(conversations_db)}"
+    if existing_conversation:
+        conversation_id = existing_conversation["conversation_id"]
+        conversation_obj = Conversation(**existing_conversation)
+    else:
+        # Create new conversation
+        conversation_id = f"conv_{chat_message.user_id}_{int(datetime.utcnow().timestamp())}"
+        conversation_obj = Conversation(
+            conversation_id=conversation_id,
+            user_id=chat_message.user_id,
+            title=chat_message.message[:50] + "..." if len(chat_message.message) > 50 else chat_message.message
+        )
     
     # Use AI Agent for professional health conversation
     try:
@@ -76,54 +87,98 @@ async def chat_with_ai(chat_message: ChatMessage):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
     
-    # Store conversation in our database
-    message_id = f"msg_{len(conversations_db) + 1}"
-    if conversation_id not in conversations_db:
-        conversations_db[conversation_id] = {
-            "user_id": chat_message.user_id,
-            "messages": []
-        }
+    # Create message objects
+    user_message = Message(
+        role="user",
+        content=chat_message.message,
+        message_id=f"msg_{int(datetime.utcnow().timestamp())}_user"
+    )
     
-    conversations_db[conversation_id]["messages"].append({
-        "id": message_id,
-        "user_message": chat_message.message,
-        "ai_response": ai_response["response"],
-        "timestamp": "2024-01-01T00:00:00Z"  # In production, use real timestamp
-    })
+    assistant_message = Message(
+        role="assistant",
+        content=ai_response["response"],
+        message_id=f"msg_{int(datetime.utcnow().timestamp())}_assistant"
+    )
+    
+    # Add messages to conversation
+    conversation_obj.messages.extend([user_message, assistant_message])
+    conversation_obj.updated_at = datetime.utcnow()
+    conversation_obj.assessment_stage = ai_response["assessment_stage"]
+    conversation_obj.symptoms_collected = ai_response["symptoms_collected"]
+    conversation_obj.needs_diagnosis = ai_response["needs_diagnosis"]
+    
+    # Save to database
+    if existing_conversation:
+        await db.conversations.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": conversation_obj.model_dump(by_alias=True, exclude={"id"})}
+        )
+    else:
+        await db.conversations.insert_one(conversation_obj.model_dump(by_alias=True, exclude={"id"}))
     
     return ChatResponse(
         response=ai_response["response"],
         conversation_id=conversation_id,
-        message_id=message_id,
+        message_id=assistant_message.message_id,
         assessment_stage=ai_response["assessment_stage"],
         symptoms_collected=ai_response["symptoms_collected"],
         needs_diagnosis=ai_response["needs_diagnosis"]
     )
 
 @app.get("/conversation/{conversation_id}", response_model=ConversationHistory)
-async def get_conversation(conversation_id: str):
-    """Get conversation history"""
-    if conversation_id not in conversations_db:
+async def get_conversation(conversation_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Get conversation history with professional caching"""
+    conversation_service = ConversationService(db)
+    conversation = await conversation_service.get_conversation_with_cache(conversation_id)
+    
+    if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
     
-    return ConversationHistory(
-        conversation_id=conversation_id,
-        messages=conversations_db[conversation_id]["messages"]
-    )
+    return conversation
 
 @app.get("/conversations/{user_id}")
-async def get_user_conversations(user_id: str):
-    """Get all conversations for a user"""
-    user_conversations = []
-    for conv_id, conv_data in conversations_db.items():
-        if conv_data["user_id"] == user_id:
-            user_conversations.append({
-                "conversation_id": conv_id,
-                "message_count": len(conv_data["messages"]),
-                "last_message": conv_data["messages"][-1] if conv_data["messages"] else None
-            })
+async def get_user_conversations(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Get all conversations for a user with professional caching"""
+    conversation_service = ConversationService(db)
+    conversations = await conversation_service.get_user_conversations_with_cache(user_id)
     
-    return {"user_id": user_id, "conversations": user_conversations}
+    return {"user_id": user_id, "conversations": [conv.model_dump() for conv in conversations]}
+
+@app.post("/conversations/new")
+async def create_new_conversation(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Create a new conversation for a user with professional optimization"""
+    conversation_service = ConversationService(db)
+    
+    # Mark any existing incomplete conversation as completed
+    await db.conversations.update_many(
+        {"user_id": user_id, "assessment_stage": {"$ne": "completed"}},
+        {"$set": {"assessment_stage": "completed"}}
+    )
+    
+    # Create new conversation using optimized service
+    conversation_id = await conversation_service.create_conversation_optimized(user_id, "New Chat")
+    
+    return {"conversation_id": conversation_id, "message": "New conversation created"}
+
+@app.delete("/conversation/{conversation_id}")
+async def delete_conversation(conversation_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Delete a conversation with cache invalidation"""
+    # Get user_id before deleting for cache invalidation
+    conversation = await db.conversations.find_one(
+        {"conversation_id": conversation_id}, 
+        {"user_id": 1}
+    )
+    
+    result = await db.conversations.delete_one({"conversation_id": conversation_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Invalidate caches
+    await conversation_cache.invalidate_conversation(conversation_id)
+    if conversation:
+        await conversation_cache.invalidate_user_conversations(conversation["user_id"])
+    
+    return {"message": "Conversation deleted successfully"}
 
 @app.post("/analyze/{conversation_id}")
 async def analyze_conversation(conversation_id: str):

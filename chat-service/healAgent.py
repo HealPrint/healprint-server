@@ -7,6 +7,7 @@ from openai import OpenAI
 from typing import Dict, List, Any, Optional
 import json
 import os
+import re
 from config import OPENROUTER_API_KEY, SITE_URL, SITE_NAME
 from diagnostic_tools import DIAGNOSTIC_DATA, get_health_factors_by_symptoms
 
@@ -30,6 +31,8 @@ class HealPrintAIAgent:
     def get_system_prompt(self) -> str:
         """Get the system prompt for the HealPrint AI agent"""
         return f"""You are HealPrint AI, a professional health and wellness AI agent specializing in connecting internal health symptoms with external skin and hair problems. You are an expert in:
+
+IMPORTANT: Never use asterisks (*) in your responses. Use plain text only with no markdown formatting.
 
 1. Holistic Health Assessment: You understand the deep connections between internal health (hormones, nutrition, stress, gut health) and external appearance (skin, hair).
 
@@ -64,8 +67,10 @@ Important Guidelines:
 - Be encouraging and supportive
 - Ask follow-up questions to get complete picture
 - Provide actionable, practical advice
-- Use clean, simple formatting without markdown bold syntax
-- Avoid using ** for emphasis - use plain text instead
+- Use clean, simple formatting without any markdown syntax
+- Never use ** for bold text or any markdown formatting
+- Write in plain text only - no bold, italics, or special formatting
+- Keep responses simple, clear, and straightforward
 - Always acknowledge the user's previous response before asking new questions
 - Build naturally on what the user has shared
 - Show that you're listening by referencing their specific answers
@@ -75,6 +80,16 @@ Important Guidelines:
 - Always build on the user's selection to gather more detailed information
 
 Your Goal: Help users understand the connection between their internal health and external appearance, guiding them toward better health and wellness through personalized insights and recommendations.
+
+Response Format Requirements:
+- Write in plain text only - no markdown formatting
+- Never use asterisks (*) anywhere in your responses
+- No bold text, no special characters, no markdown syntax
+- Use simple, clear language
+- Keep responses straightforward and easy to read
+- For numbered lists, use format: "1. Topic: Description" (no asterisks)
+- For bullet points, use dashes (-) instead of asterisks
+- Example: "1. Acne and Hair Loss: Both can be influenced by hormonal imbalances"
 
 Remember: You're not replacing medical professionals, but you're providing valuable insights that can guide users toward better health decisions and appropriate professional care."""
 
@@ -153,6 +168,9 @@ Use this information to guide your questions and provide comprehensive health in
             )
             
             ai_response = completion.choices[0].message.content
+            
+            # Clean the response to remove all markdown formatting
+            ai_response = self._clean_response_formatting(ai_response)
             
             # Add AI response to conversation history
             conversation["messages"].append({
@@ -461,3 +479,27 @@ Format your response as a structured analysis.
             "assessment_stage": conversation["assessment_stage"],
             "last_message": conversation["messages"][-1] if conversation["messages"] else None
         }
+    
+    def _clean_response_formatting(self, response: str) -> str:
+        """Clean response to remove all markdown formatting and asterisks"""
+        # Remove bold formatting (**text**)
+        response = re.sub(r'\*\*(.*?)\*\*', r'\1', response)
+        
+        # Remove italic formatting (*text*)
+        response = re.sub(r'\*(.*?)\*', r'\1', response)
+        
+        # Remove any remaining asterisks
+        response = response.replace('*', '')
+        
+        # Clean up numbered lists to remove any markdown
+        lines = response.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            # Fix numbered lists: "1. **Text**:" -> "1. Text:"
+            line = re.sub(r'(\d+\.)\s*\*\*(.*?)\*\*:', r'\1 \2:', line)
+            # Fix any remaining bold in lists
+            line = re.sub(r'(\d+\.)\s*\*(.*?)\*:', r'\1 \2:', line)
+            cleaned_lines.append(line)
+        
+        return '\n'.join(cleaned_lines)

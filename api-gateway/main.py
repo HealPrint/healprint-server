@@ -63,6 +63,68 @@ async def health_check():
         "services": services_status
     }
 
+# Auth Routes (User Service)
+@app.api_route("/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def auth_service_proxy(path: str, request):
+    """Proxy auth requests to user service"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.request(
+                method=request.method,
+                url=f"{USER_SERVICE_URL}/auth/{path}",
+                headers=dict(request.headers),
+                content=await request.body()
+            )
+            return response.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Auth service error: {str(e)}")
+
+# Direct Auth Routes (for backward compatibility)
+@app.post("/login")
+async def login_proxy(request):
+    """Proxy login requests to user service"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.request(
+                method=request.method,
+                url=f"{USER_SERVICE_URL}/login",
+                headers=dict(request.headers),
+                content=await request.body()
+            )
+            return response.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Login service error: {str(e)}")
+
+@app.post("/register")
+async def register_proxy(request):
+    """Proxy register requests to user service"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.request(
+                method=request.method,
+                url=f"{USER_SERVICE_URL}/register",
+                headers=dict(request.headers),
+                content=await request.body()
+            )
+            return response.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Register service error: {str(e)}")
+
+@app.get("/profile/{user_id}")
+async def profile_proxy(user_id: str, request):
+    """Proxy profile requests to user service"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.request(
+                method=request.method,
+                url=f"{USER_SERVICE_URL}/profile/{user_id}",
+                headers=dict(request.headers),
+                content=await request.body()
+            )
+            return response.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Profile service error: {str(e)}")
+
 # User Service Routes
 @app.api_route("/users/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def user_service_proxy(path: str, request):

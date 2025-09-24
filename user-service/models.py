@@ -24,6 +24,10 @@ class UserLogin(BaseModel):
 class GoogleAuthRequest(BaseModel):
     token: str
 
+class GoogleCallbackRequest(BaseModel):
+    code: str
+    redirect_uri: str
+
 class UserInDB(BaseModel):
     email: EmailStr
     password: Optional[str] = None  # Optional for Google users
