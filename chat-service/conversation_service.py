@@ -81,11 +81,12 @@ class ConversationService:
             conversations = []
             async for doc in cursor:
                 conversation_summary = ConversationSummary(
-                    id=doc["conversation_id"],
+                    conversation_id=doc["conversation_id"],
                     title=doc.get("title", "New Conversation"),
-                    lastMessage=doc.get("last_message", ""),
-                    timestamp=doc["updated_at"],
-                    messageCount=len(doc.get("messages", []))
+                    last_message=doc.get("last_message", ""),
+                    message_count=len(doc.get("messages", [])),
+                    created_at=doc.get("created_at", datetime.now()),
+                    updated_at=doc.get("updated_at", datetime.now()),
                 )
                 conversations.append(conversation_summary)
             

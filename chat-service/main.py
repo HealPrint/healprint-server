@@ -8,8 +8,10 @@ from datetime import datetime
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from contextlib import asynccontextmanager
+import logging
 
 from healAgent import HealPrintAIAgent
+from config import OPENROUTER_API_KEY, SITE_URL, SITE_NAME
 from database import connect_to_mongo, close_mongo_connection, get_database, lifespan
 from models import (
     ChatMessage, ChatResponse, Conversation, Message, 
@@ -17,6 +19,16 @@ from models import (
 )
 from conversation_service import ConversationService
 from cache_service import conversation_cache
+
+# Configure logging early
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
+)
+logger = logging.getLogger("chat-service")
+
+masked_key = (OPENROUTER_API_KEY[:6] + "..." + OPENROUTER_API_KEY[-4:]) if OPENROUTER_API_KEY else "Not set"
+logger.info(f"Startup config: SITE_URL={SITE_URL} SITE_NAME={SITE_NAME} OPENROUTER_API_KEY={masked_key}")
 
 app = FastAPI(
     title="HealPrint Chat Service", 
@@ -36,8 +48,10 @@ app.add_middleware(
 # Initialize AI Agent
 try:
     ai_agent = HealPrintAIAgent()
+    if ai_agent is None:
+        logger.warning("AI agent is None after initialization")
 except Exception as e:
-    print(f"Warning: AI Agent initialization failed: {e}")
+    logger.exception(f"AI Agent initialization failed: {e}")
     ai_agent = None
 
 # Database dependency
@@ -54,9 +68,10 @@ async def root():
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_ai(chat_message: ChatMessage, db: AsyncIOMotorDatabase = Depends(get_db)):
     """Process chat message and return AI response"""
-    
+    logger.info(f"/chat called for user_id={chat_message.user_id}")
     # Check if AI agent is available
     if ai_agent is None:
+        logger.error("AI agent unavailable")
         raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
     
     # Find existing conversation for this user or create new one
@@ -84,7 +99,12 @@ async def chat_with_ai(chat_message: ChatMessage, db: AsyncIOMotorDatabase = Dep
             user_id=chat_message.user_id,
             conversation_id=conversation_id
         )
+        if ai_response.get("error"):
+            logger.error(f"AI fallback/error: {ai_response['error']}")
+        else:
+            logger.info("AI response generated successfully")
     except Exception as e:
+        logger.exception(f"AI processing failed: {e}")
         raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
     
     # Create message objects

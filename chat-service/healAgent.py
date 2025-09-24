@@ -16,10 +16,21 @@ class HealPrintAIAgent:
         self.client = None
         if OPENROUTER_API_KEY and OPENROUTER_API_KEY != "your_openrouter_api_key_here":
             try:
+                # Initialize OpenRouter client with default headers
                 self.client = OpenAI(
                     base_url="https://openrouter.ai/api/v1",
                     api_key=OPENROUTER_API_KEY,
+                    default_headers={
+                        "HTTP-Referer": SITE_URL,
+                        "X-Title": SITE_NAME,
+                    },
                 )
+                # Optional: try a lightweight call to verify connectivity, but don't disable client on failure
+                try:
+                    _ = self.client.models.list()
+                    print("✅ OpenRouter API key validated: models list accessible")
+                except Exception as ve:
+                    print(f"⚠️  OpenRouter validation warning: {ve}")
             except Exception as e:
                 print(f"Warning: Failed to initialize OpenAI client: {e}")
                 self.client = None
@@ -157,10 +168,6 @@ Use this information to guide your questions and provide comprehensive health in
             
             # Call OpenAI API
             completion = self.client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": SITE_URL,
-                    "X-Title": SITE_NAME,
-                },
                 model="openai/gpt-4o-mini",  # Using cheaper model
                 messages=formatted_messages,
                 temperature=0.7,
@@ -196,7 +203,10 @@ Use this information to guide your questions and provide comprehensive health in
             }
             
         except Exception as e:
+            import traceback
             error_msg = str(e)
+            print(f"❌ OpenRouter chat error: {error_msg}")
+            traceback.print_exc()
             
             # Handle specific API credit errors
             if "402" in error_msg or "credits" in error_msg.lower():
