@@ -12,7 +12,7 @@ import os
 from jose import JWTError, jwt
 
 from database import connect_to_mongo, close_mongo_connection, get_database
-from models import UserCreate, UserResponse, UserLogin, UserInDB, GoogleAuthRequest, GoogleCallbackRequest
+from models import UserCreate, UserResponse, UserLogin, UserInDB, GoogleAuthRequest, GoogleCallbackRequest, AuthUserResponse
 
 # Lifespan context manager for database connection
 @asynccontextmanager
@@ -29,11 +29,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware - simplified approach
+# CORS Configuration - can be overridden by environment variable
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+# Convert comma-separated string to list if multiple origins provided
+cors_origins = CORS_ORIGINS.split(",") if CORS_ORIGINS != "*" else ["*"]
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
-    allow_credentials=False,  # Set to False when using *
+    allow_origins=cors_origins,
+    allow_credentials=False if "*" in cors_origins else True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -47,6 +52,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://healprint.vercel.app/auth/google/callback")
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     """Create JWT access token"""
@@ -102,7 +109,30 @@ async def cors_test():
     """Test endpoint to verify CORS is working"""
     return {"message": "CORS is working!", "timestamp": datetime.utcnow().isoformat()}
 
-@app.post("/auth/google/callback")
+@app.get("/auth/google/url")
+async def get_google_auth_url():
+    """Generate Google OAuth URL for client-side redirect"""
+    try:
+        # Construct Google OAuth URL
+        params = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "select_account"
+        }
+        
+        # Build URL with query parameters
+        from urllib.parse import urlencode
+        auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        
+        return {"url": auth_url}
+    except Exception as e:
+        print(f" Error generating Google OAuth URL: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate OAuth URL: {str(e)}")
+
+@app.post("/auth/google/callback", response_model=AuthUserResponse)
 async def google_auth_callback(request: GoogleCallbackRequest):
     """Handle Google OAuth callback with authorization code"""
     try:
@@ -130,7 +160,7 @@ async def google_auth_callback(request: GoogleCallbackRequest):
         token_response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
         
         if not token_response.ok:
-            print(f"❌ Token exchange failed: {token_response.status_code} - {token_response.text}")
+            print(f" Token exchange failed: {token_response.status_code} - {token_response.text}")
             raise HTTPException(status_code=400, detail="Failed to exchange code for token")
         
         token_response_data = token_response.json()
@@ -141,11 +171,11 @@ async def google_auth_callback(request: GoogleCallbackRequest):
         
         # Verify the ID token
         google_user = await verify_google_token(id_token)
-        print(f"✅ Google token verified for: {google_user['email']}")
+        print(f" Google token verified for: {google_user['email']}")
         
         db = get_database()
         if db is None:
-            print("❌ Database connection not available")
+            print(" Database connection not available")
             raise HTTPException(status_code=500, detail="Database connection not available")
         
         # Check if user exists by Google ID or email
@@ -163,7 +193,7 @@ async def google_auth_callback(request: GoogleCallbackRequest):
                     {"_id": existing_user["_id"]},
                     {"$set": {"google_id": google_user["google_id"], "auth_provider": "google"}}
                 )
-            print(f"✅ Existing user found: {existing_user['email']}")
+            print(f" Existing user found: {existing_user['email']}")
         else:
             # Create new user
             user_doc = {
@@ -176,7 +206,7 @@ async def google_auth_callback(request: GoogleCallbackRequest):
             
             result = await db.users.insert_one(user_doc)
             existing_user = await db.users.find_one({"_id": result.inserted_id})
-            print(f"✅ New Google user created: {google_user['email']}")
+            print(f" New Google user created: {google_user['email']}")
         
         # Create JWT token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -199,10 +229,10 @@ async def google_auth_callback(request: GoogleCallbackRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Unexpected error in Google OAuth callback: {e}")
+        print(f" Unexpected error in Google OAuth callback: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@app.post("/auth/google", response_model=UserResponse)
+@app.post("/auth/google", response_model=AuthUserResponse)
 async def google_auth(google_auth: GoogleAuthRequest):
     """Authenticate user with Google OAuth"""
     try:
@@ -210,11 +240,11 @@ async def google_auth(google_auth: GoogleAuthRequest):
         
         # Verify Google token
         google_user = await verify_google_token(google_auth.token)
-        print(f"✅ Google token verified for: {google_user['email']}")
+        print(f" Google token verified for: {google_user['email']}")
         
         db = get_database()
         if db is None:
-            print("❌ Database connection not available")
+            print(" Database connection not available")
             raise HTTPException(status_code=500, detail="Database connection not available")
         
         # Check if user exists by Google ID or email
@@ -232,7 +262,7 @@ async def google_auth(google_auth: GoogleAuthRequest):
                     {"_id": existing_user["_id"]},
                     {"$set": {"google_id": google_user["google_id"], "auth_provider": "google"}}
                 )
-            print(f"✅ Existing user found: {existing_user['email']}")
+            print(f" Existing user found: {existing_user['email']}")
         else:
             # Create new user
             user_doc = {
@@ -245,7 +275,7 @@ async def google_auth(google_auth: GoogleAuthRequest):
             
             result = await db.users.insert_one(user_doc)
             existing_user = await db.users.find_one({"_id": result.inserted_id})
-            print(f"✅ New Google user created: {google_user['email']}")
+            print(f" New Google user created: {google_user['email']}")
         
         # Create JWT token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -268,7 +298,7 @@ async def google_auth(google_auth: GoogleAuthRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Unexpected error in Google auth: {e}")
+        print(f" Unexpected error in Google auth: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/register", response_model=UserResponse)
@@ -279,18 +309,18 @@ async def register_user(user: UserCreate):
         
         db = get_database()
         if db is None:
-            print("❌ Database connection not available")
+            print(" Database connection not available")
             raise HTTPException(status_code=500, detail="Database connection not available")
         
-        print("✅ Database connection available")
+        print(" Database connection available")
         
         # Check if user already exists
         existing_user = await db.users.find_one({"email": user.email})
         if existing_user:
-            print(f"❌ User already exists: {user.email}")
+            print(f" User already exists: {user.email}")
             raise HTTPException(status_code=400, detail="Email already registered")
         
-        print("✅ User email is available")
+        print(" User email is available")
         
         # Create new user document
         user_doc = {
@@ -302,11 +332,11 @@ async def register_user(user: UserCreate):
             "created_at": datetime.utcnow()
         }
         
-        print("✅ User document created")
+        print(" User document created")
         
         # Insert user into MongoDB
         result = await db.users.insert_one(user_doc)
-        print(f"✅ User inserted with ID: {result.inserted_id}")
+        print(f" User inserted with ID: {result.inserted_id}")
         
         # Return user response
         return UserResponse(
@@ -320,7 +350,7 @@ async def register_user(user: UserCreate):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Unexpected error in register: {e}")
+        print(f" Unexpected error in register: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/login")

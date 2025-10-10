@@ -17,6 +17,16 @@ class UserResponse(BaseModel):
     country: Optional[str] = None
     created_at: Optional[datetime] = None
 
+class AuthUserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    age: Optional[int] = None
+    country: Optional[str] = None
+    created_at: Optional[datetime] = None
+    access_token: str
+    token_type: str
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
