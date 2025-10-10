@@ -158,13 +158,22 @@ async def google_auth_callback(request: GoogleCallbackRequest):
             "redirect_uri": redirect_uri
         }
         
-        print(f"🔧 Token exchange data: {token_data}")
+        # Sanitize sensitive data for logging
+        safe_token_data = {k: v if k != 'client_secret' else '***' for k, v in token_data.items()}
+        print(f"🔧 Token exchange data: {safe_token_data}")
         
         token_response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
         
         if not token_response.ok:
-            print(f" Token exchange failed: {token_response.status_code} - {token_response.text}")
-            raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+            error_detail = token_response.json() if token_response.headers.get('content-type', '').startswith('application/json') else token_response.text
+            print(f"❌ Token exchange failed: {token_response.status_code}")
+            print(f"❌ Google error response: {error_detail}")
+            print(f"🔧 Redirect URI used: {redirect_uri}")
+            print(f"🔧 GOOGLE_REDIRECT_URI env: {GOOGLE_REDIRECT_URI}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Failed to exchange code for token: {error_detail}"
+            )
         
         token_response_data = token_response.json()
         id_token = token_response_data.get("id_token")
