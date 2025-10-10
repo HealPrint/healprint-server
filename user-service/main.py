@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Response
-from fastapi.security import HTTPBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
@@ -136,7 +136,7 @@ async def get_google_auth_url():
         raise HTTPException(status_code=500, detail=f"Failed to generate OAuth URL: {str(e)}")
 
 @app.post("/auth/google/callback", response_model=AuthUserResponse)
-async def google_auth_callback(request: GoogleCallbackRequest):
+async def google_auth_callback(request: GoogleCallbackRequest, response: Response):
     """Handle Google OAuth callback with authorization code"""
     try:
         print(f"🔧 Google OAuth callback received")
@@ -296,6 +296,17 @@ async def google_auth(google_auth: GoogleAuthRequest):
             expires_delta=access_token_expires
         )
         
+        # Set httpOnly cookie (more secure than localStorage)
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,  # Prevents JavaScript access
+            secure=True,     # Only sent over HTTPS
+            samesite="none", # Required for cross-site requests
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
+            domain=".healprint.xyz"  # Allow cookie across subdomains
+        )
+        
         return {
             "id": str(existing_user["_id"]),
             "email": existing_user["email"],
@@ -303,7 +314,7 @@ async def google_auth(google_auth: GoogleAuthRequest):
             "age": existing_user.get("age"),
             "country": existing_user.get("country"),
             "created_at": existing_user.get("created_at"),
-            "access_token": access_token,
+            "access_token": access_token,  # Still return for backward compatibility
             "token_type": "bearer"
         }
         
@@ -366,7 +377,7 @@ async def register_user(user: UserCreate):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/login")
-async def login_user(credentials: UserLogin):
+async def login_user(credentials: UserLogin, response: Response):
     """Login user and return token"""
     db = get_database()
     if db is None:
@@ -381,9 +392,25 @@ async def login_user(credentials: UserLogin):
     if not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Simple token for MVP
-    token = f"token_{user['_id']}"
-    return {"access_token": token, "token_type": "bearer"}
+    # Create JWT token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user["_id"])}, 
+        expires_delta=access_token_expires
+    )
+    
+    # Set httpOnly cookie (more secure than localStorage)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Prevents JavaScript access
+        secure=True,     # Only sent over HTTPS
+        samesite="none", # Required for cross-site requests
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
+        domain=".healprint.xyz"  # Allow cookie across subdomains
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/profile/{user_id}", response_model=UserResponse)
 async def get_user_profile(user_id: str):
