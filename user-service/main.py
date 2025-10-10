@@ -30,7 +30,10 @@ app = FastAPI(
 )
 
 # CORS Configuration - can be overridden by environment variable
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+# Default includes common production domains
+DEFAULT_CORS_ORIGINS = "https://www.healprint.xyz,https://healprint.xyz,https://healprint.vercel.app,http://localhost:8080,http://localhost:5173"
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", DEFAULT_CORS_ORIGINS)
+
 # Convert comma-separated string to list if multiple origins provided
 cors_origins = CORS_ORIGINS.split(",") if CORS_ORIGINS != "*" else ["*"]
 
@@ -38,7 +41,7 @@ cors_origins = CORS_ORIGINS.split(",") if CORS_ORIGINS != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=False if "*" in cors_origins else True,
+    allow_credentials=True,  # Enable credentials for authenticated requests
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
