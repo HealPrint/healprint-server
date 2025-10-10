@@ -130,7 +130,7 @@ async def get_google_auth_url():
         from urllib.parse import urlencode
         auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
         
-        return {"url": auth_url}
+        return {"url": auth_url, "redirect_uri": GOOGLE_REDIRECT_URI}
     except Exception as e:
         print(f" Error generating Google OAuth URL: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate OAuth URL: {str(e)}")

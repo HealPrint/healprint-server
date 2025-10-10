@@ -20,7 +20,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-https://healprint.vercel.app/auth/google/callback}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-https://healprint.xyz/auth/google/callback}
     networks:
       - healprint-network
 
@@ -50,7 +50,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PORT=8000
+      - PORT=800
       - USER_SERVICE_URL=http://user-service:8001
       - CHAT_SERVICE_URL=http://chat-service:8002
       - DIAGNOSTIC_SERVICE_URL=http://diagnostic-service:8003

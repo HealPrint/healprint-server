@@ -37,6 +37,7 @@ class GoogleAuthRequest(BaseModel):
 class GoogleCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
+    state: Optional[str] = None
 
 class UserInDB(BaseModel):
     email: EmailStr
