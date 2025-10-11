@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Response, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import FastAPI, HTTPException, Depends, Response
+from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
@@ -136,7 +136,7 @@ async def get_google_auth_url():
         raise HTTPException(status_code=500, detail=f"Failed to generate OAuth URL: {str(e)}")
 
 @app.post("/auth/google/callback", response_model=AuthUserResponse)
-async def google_auth_callback(request: GoogleCallbackRequest, response: Response):
+async def google_auth_callback(request: GoogleCallbackRequest):
     """Handle Google OAuth callback with authorization code"""
     try:
         print(f"🔧 Google OAuth callback received")
@@ -296,17 +296,6 @@ async def google_auth(google_auth: GoogleAuthRequest):
             expires_delta=access_token_expires
         )
         
-        # Set httpOnly cookie (more secure than localStorage)
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,  # Prevents JavaScript access
-            secure=True,     # Only sent over HTTPS
-            samesite="none", # Required for cross-site requests
-            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
-            domain=".healprint.xyz"  # Allow cookie across subdomains
-        )
-        
         return {
             "id": str(existing_user["_id"]),
             "email": existing_user["email"],
@@ -314,7 +303,7 @@ async def google_auth(google_auth: GoogleAuthRequest):
             "age": existing_user.get("age"),
             "country": existing_user.get("country"),
             "created_at": existing_user.get("created_at"),
-            "access_token": access_token,  # Still return for backward compatibility
+            "access_token": access_token,
             "token_type": "bearer"
         }
         
@@ -377,7 +366,7 @@ async def register_user(user: UserCreate):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/login")
-async def login_user(credentials: UserLogin, response: Response):
+async def login_user(credentials: UserLogin):
     """Login user and return token"""
     db = get_database()
     if db is None:
@@ -392,72 +381,9 @@ async def login_user(credentials: UserLogin, response: Response):
     if not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Create JWT token
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user["_id"])}, 
-        expires_delta=access_token_expires
-    )
-    
-    # Set httpOnly cookie (more secure than localStorage)
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,  # Prevents JavaScript access
-        secure=True,     # Only sent over HTTPS
-        samesite="none", # Required for cross-site requests
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
-        domain=".healprint.xyz"  # Allow cookie across subdomains
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/auth/me", response_model=UserResponse)
-async def get_current_user(request: Request):
-    """Get current authenticated user from httpOnly cookie"""
-    try:
-        # Get token from cookie
-        token = request.cookies.get("access_token")
-        
-        if not token:
-            raise HTTPException(status_code=401, detail="Not authenticated")
-        
-        # Decode JWT token
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            if not user_id:
-                raise HTTPException(status_code=401, detail="Invalid token")
-        except JWTError:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        # Get user from database
-        db = get_database()
-        if db is None:
-            raise HTTPException(status_code=500, detail="Database connection not available")
-        
-        try:
-            object_id = ObjectId(user_id)
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        user = await db.users.find_one({"_id": object_id})
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return UserResponse(
-            id=str(user["_id"]),
-            email=user["email"],
-            name=user["name"],
-            age=user.get("age"),
-            country=user.get("country"),
-            created_at=user.get("created_at")
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error in get_current_user: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    # Simple token for MVP
+    token = f"token_{user['_id']}"
+    return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/profile/{user_id}", response_model=UserResponse)
 async def get_user_profile(user_id: str):
@@ -485,96 +411,6 @@ async def get_user_profile(user_id: str):
         country=user.get("country"),
         created_at=user.get("created_at")
     )
-
-@app.post("/auth/google/token", response_model=AuthUserResponse)
-async def google_one_tap_login(request: GoogleAuthRequest, response: Response):
-    """Handle Google One Tap login with credential token"""
-    try:
-        print(f"🔧 Google One Tap login received")
-        
-        # Verify the Google ID token
-        google_user = await verify_google_token(request.token)
-        print(f" Google One Tap verified for: {google_user['email']}")
-        
-        db = get_database()
-        if db is None:
-            print(" Database connection not available")
-            raise HTTPException(status_code=500, detail="Database connection not available")
-        
-        # Check if user exists by Google ID or email
-        existing_user = await db.users.find_one({
-            "$or": [
-                {"google_id": google_user["google_id"]},
-                {"email": google_user["email"]}
-            ]
-        })
-        
-        if existing_user:
-            # Update existing user with Google ID if not already set
-            if not existing_user.get("google_id"):
-                await db.users.update_one(
-                    {"_id": existing_user["_id"]},
-                    {"$set": {"google_id": google_user["google_id"], "auth_provider": "google"}}
-                )
-            print(f" Existing user found: {existing_user['email']}")
-        else:
-            # Create new user
-            user_doc = {
-                "email": google_user["email"],
-                "name": google_user["name"],
-                "google_id": google_user["google_id"],
-                "auth_provider": "google",
-                "created_at": datetime.utcnow()
-            }
-            
-            result = await db.users.insert_one(user_doc)
-            existing_user = await db.users.find_one({"_id": result.inserted_id})
-            print(f" New Google user created via One Tap: {google_user['email']}")
-        
-        # Create JWT token
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": str(existing_user["_id"])}, 
-            expires_delta=access_token_expires
-        )
-        
-        # Set httpOnly cookie
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=True,
-            samesite="none",
-            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            domain=".healprint.xyz"
-        )
-        
-        return {
-            "id": str(existing_user["_id"]),
-            "email": existing_user["email"],
-            "name": existing_user["name"],
-            "age": existing_user.get("age"),
-            "country": existing_user.get("country"),
-            "created_at": existing_user.get("created_at"),
-            "access_token": access_token,
-            "token_type": "bearer"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f" Unexpected error in Google One Tap auth: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.post("/auth/logout")
-async def logout(response: Response):
-    """Logout user by clearing the httpOnly cookie"""
-    response.delete_cookie(
-        key="access_token",
-        domain=".healprint.xyz",
-        path="/"
-    )
-    return {"message": "Logged out successfully"}
 
 @app.get("/health")
 async def health_check():
